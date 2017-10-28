@@ -12,15 +12,20 @@
 
 char* last_dir;
 
-bool eval(char* input, char* envp[]){
+bool eval(char* input /*input has a \n at the end*/, char* envp[]){
 
     char *arg[MAXARGS];
     pid_t pid; /*PROCESS ID*/
+    int bg;
 
     int size = parseline(input, arg);
 
+    if((bg = (*arg[size-1] == '&')) != 0) /*IF THE JOB SHOULD RUN IN THE BACKGROUND*/
+        arg[--size] = NULL;
+
     if(arg[0] == NULL) /*IGNORE EMPTY LINES*/
         return true;
+
 
     if(!check_builtin(arg, size)){
 
@@ -30,8 +35,23 @@ bool eval(char* input, char* envp[]){
                 return false;
         }
     }
-        printf("hi\n");
+
+    else
         return true;
+
+    /*PARENT WAITS FOR FOREGROUND PROCESS TO TERMINATE*/
+    if(!bg){
+
+        int status;
+
+        if(waitpid(pid, &status, 0) < 0)
+            unix_error("fg: waitpid error");
+    }
+    else
+        printf("%d %s\n",pid, input);
+
+    return true;
+
 
 }
 
