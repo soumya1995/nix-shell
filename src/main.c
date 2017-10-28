@@ -9,8 +9,14 @@
 #include "debug.h"
 
 int main(int argc, char *argv[], char* envp[]) {
+
+    extern char* last_dir;
+
     char* input;
+    char* prompt;
+    char* mod_prompt;
     bool exited = false;
+    char* netid = " :: sodas >> ";
 
     if(!isatty(STDIN_FILENO)) {
         // If your shell is reading from a piped file
@@ -24,30 +30,49 @@ int main(int argc, char *argv[], char* envp[]) {
 
     do {
 
-        input = readline("> ");
+        /*SET THE PROMPT*/
+        char* path = pwd();
 
-        write(1, "\e[s", strlen("\e[s"));
-        write(1, "\e[20;10H", strlen("\e[20;10H"));
-        write(1, "SomeText", strlen("SomeText"));
-        write(1, "\e[u", strlen("\e[u"));
+        if(strcmp(path,getenv("HOME")) <= 0)
+            prompt = path;
+
+        else{
+        int home_len = strlen(getenv("HOME"));
+        *(path+home_len-1) = '~';
+        prompt = path+home_len-1;
+        }
+
+        mod_prompt = calloc(strlen(prompt)+strlen(netid), strlen(prompt)+strlen(netid));
+        strcpy(mod_prompt, prompt);
+        strcat(mod_prompt, netid);
+
+        input = readline(mod_prompt);
+
+        free(path); /*free after calling pwd()*/
+        free(mod_prompt); /*free after calloc*/
+
 
         // If EOF is read (aka ^D) readline returns NULL
         if(input == NULL) {
+            printf("\n");
             continue;
         }
 
+        strcat(input,"\n"); /*ADD NEWLINE TO END OF input*/
 
-        // Currently nothing is implemented
-        printf(EXEC_NOT_FOUND, input);
+        /*CALL check_builtin() to check if user have entered a vaid built-in and execute it*/
+        if(eval(input, envp) == false)
+            printf(EXEC_NOT_FOUND, input);
 
-        // You should change exit to a "builtin" for your hw.
-        exited = strcmp(input, "exit") == 0;
 
         // Readline mallocs the space for input. You must free it.
         rl_free(input);
 
     } while(!exited);
 
+    free(last_dir);/*free the last_dir variable since it was malloc()*/
+
+    exit(0);
     debug("%s", "user entered 'exit'");
 
     return EXIT_SUCCESS;
