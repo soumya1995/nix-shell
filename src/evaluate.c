@@ -15,43 +15,172 @@ char* last_dir;
 bool eval(char* input /*input has a \n at the end*/, char* envp[]){
 
     char *arg[MAXARGS];
+    char *prog[MAXARGS]; /*STORING THE EXECUTABLE*/
     pid_t pid; /*PROCESS ID*/
-    int bg;
+   // int bg;
+    int i=0;
 
     int size = parseline(input, arg);
 
-    if((bg = (*arg[size-1] == '&')) != 0) /*IF THE JOB SHOULD RUN IN THE BACKGROUND*/
-        arg[--size] = NULL;
+    /*EXECUTABLE*/
+    //if((bg = (*arg[size-1] == '&')) != 0) /*IF THE JOB SHOULD RUN IN THE BACKGROUND*/
+       // arg[--size] = NULL;
 
     if(arg[0] == NULL) /*IGNORE EMPTY LINES*/
         return true;
 
+    int j=0;
+    while(arg[j] != NULL){
+
+        if((strcmp(arg[j],">") == 0) || (strcmp(arg[j],"<") == 0))
+            break;
+
+        prog[j] = arg[j];
+        j++;
+    }
+    prog[j] = NULL;
 
     if(!check_builtin(arg, size)){
+    while(arg[i]!= NULL){
 
-        if((pid = Fork()) == 0){
+        if(strcmp(arg[i],"<") == 0){
+
+            if(arg[i+1] == NULL){/*IF THERE IS NO ARGUMENT AFTER <*/
+                printf(SYNTAX_ERROR,"unexpected token 'newline'");
+                return false;
+            }
+
+            if(arg[i+2]==NULL){
+               return file_redirect(prog, arg[i+1], NULL, 0);/*OPTION 0: input*/
+
+            }
+
+            if((strcmp(arg[i+2],">") == 0)){
+
+                if(arg[i+3] ==NULL){/*IF THERE IS NO ARGUMENT AFTER >*/
+                    printf(SYNTAX_ERROR,"unexpected token 'newline'");
+                    return false;
+                }
+                else{
+
+                    return file_redirect(prog, arg[i+1], arg[i+3], 2); /*OPTION 2: input and output*/
+
+                }
+            }
+            else{
+                printf(SYNTAX_ERROR,arg[i+2]);
+                return false;
+            }
+
+        }
+
+        else if(strcmp(arg[i],">") == 0){
+
+            if(arg[i+1] == NULL){
+                printf(SYNTAX_ERROR,"unexpected token 'newline'");
+                return false;
+            }
+
+            if(arg[i+2] == NULL){
+                return file_redirect(prog, NULL, arg[i+1], 1); /*OPTION 1: output*/
+
+            }
+
+            if((strcmp(arg[i+2],"<") == 0)){
+
+                if(arg[i+3] ==NULL){/*IF THERE IS NO ARGUMENT AFTER >*/
+                    printf(SYNTAX_ERROR,"unexpected token 'newline'");
+                    return false;
+                }
+                else{
+                    return file_redirect(prog, arg[i+3], arg[i+1], 2); /*OPTION 2: input and output*/
+
+                }
+            }
+            else{
+                printf(SYNTAX_ERROR,arg[i+2]);
+                return false;
+            }
+        }
+
+        i++;
+    }
+
+        if((pid = Fork()) == 0){ /*LAUNCH THE EXECUTABLE WHEN NO REDIRECTION OR PIPING IS NOT FOUND*/
 
             if(execvp(arg[0],arg)<0)
                 return false;
         }
-    }
-
-    else
-        return true;
-
-    /*PARENT WAITS FOR FOREGROUND PROCESS TO TERMINATE*/
-    if(!bg){
 
         int status;
 
         if(waitpid(pid, &status, 0) < 0)
             unix_error("fg: waitpid error");
+
+        return true;
     }
-    else
-        printf("%d %s\n",pid, input);
 
-    return true;
+    else /*THE COMMAND WAS A BUILT-IN AND WAS TRUE*/
+        return true;
 
+}
+
+/*EXECUTING PROCESSES WITH REDIRECTS*/
+bool file_redirect(char *argv[], char *inputfile, char *outputfile, int option){
+
+
+    pid_t pid; /*PROCESS ID*/
+    int in_flags, out_flags, fd;
+
+    in_flags = O_RDONLY;
+    out_flags = O_WRONLY|O_CREAT|O_TRUNC;
+
+    if((pid = Fork()) == 0){
+        if(option == 0){ /*input redirection*/
+
+            fd = open(inputfile, in_flags, S_IRWXU);
+            Dup2(fd, STDIN_FILENO); /*REPLACE STDIN WITH THE INPUT FILE*/
+            close(fd);
+        }
+
+        if(option == 1){ /*output redirection*/
+
+            fd = open(outputfile, out_flags, S_IRWXU);
+            Dup2(fd, STDOUT_FILENO); /*REPLACE STDOUT WITH OUTPUT FILE*/
+            close(fd);
+        }
+
+        if(option == 2){ /*input and output redirection*/
+
+            /*INPUT REDIRECTION*/
+            fd = open(inputfile, in_flags, S_IRWXU);
+            Dup2(fd, STDIN_FILENO); /*REPLACE STDIN WITH THE INPUT FILE*/
+            close(fd);
+
+            /*OUTPUT REDIRECTION*/
+            fd = open(outputfile, out_flags, S_IRWXU);
+            Dup2(fd, STDOUT_FILENO); /*REPLACE STDOUT WITH OUTPUT FILE*/
+            close(fd);
+        }
+
+        if(execvp(argv[0],argv)<0){
+            return false;
+        }
+
+
+    }
+    /*else{
+        printf("Cannot create child\n");
+        return false;
+    }*/
+
+    int status;
+
+        if(waitpid(pid, &status, 0) < 0)
+            unix_error("fg: waitpid error");
+
+
+        return true;
 
 }
 

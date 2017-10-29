@@ -2,12 +2,14 @@
 #define SFISH_H
 #define MAXARGS 128
 
-/*FUNCTIONS FOR evaluate.c*/
+/*FUNCTIONS FOR eval*/
+bool file_redirect(char *argv[], char *inputfile, char *outputfile, int option);
+
 bool eval(char* input, char* envp[]);
 
 int parseline(char* buf, char **argv);
 
-/*FUNCTIONS FOR builtin.c*/
+/*FUNCTIONS FOR builtin*/
 bool check_builtin(char **argv, int argc);
 
 void help(char **argv, int argc);

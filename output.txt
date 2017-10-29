@@ -1,9 +1,0 @@
-bin
-build
-include
-Makefile
-Makefile.config
-output.txt
-src
-testcmds.sf
-tests
