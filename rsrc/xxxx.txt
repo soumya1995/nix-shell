@@ -1,0 +1,4 @@
+pwd: pwd [-LP]
+     Print the name of the current working directory
+hi
+~/sodas/hw4 :: sodas >> ^Z

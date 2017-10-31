@@ -1,0 +1,7 @@
+help: help [-d]
+      Display information about built-in commands
+pwd: pwd [-LP]
+     Print the name of the current working directory
+sfish: help: no help topics match '>' . Try 'help help'
+sfish: help: no help topics match 'rsrc/help.txt' . Try 'help help'
+~/sodas/hw4 :: sodas >> ^Z

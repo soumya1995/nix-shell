@@ -5,7 +5,13 @@
 /*FUNCTIONS FOR eval*/
 bool file_redirect(char *argv[], char *inputfile, char *outputfile, int option);
 
+bool piped(char *argv[], int argc);
+
+int is_even(int n);
+
 bool eval(char* input, char* envp[]);
+
+int parse_redirect(char *argv[], char *argv_mod[]);
 
 int parseline(char* buf, char **argv);
 

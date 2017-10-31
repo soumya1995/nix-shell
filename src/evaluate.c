@@ -14,13 +14,17 @@ char* last_dir;
 
 bool eval(char* input /*input has a \n at the end*/, char* envp[]){
 
+    //char *arg_prev[MAXARGS];
     char *arg[MAXARGS];
     char *prog[MAXARGS]; /*STORING THE EXECUTABLE*/
     pid_t pid; /*PROCESS ID*/
    // int bg;
-    int i=0;
+    int i=0, size;
 
-    int size = parseline(input, arg);
+
+    size = parseline(input, arg);
+
+    //size = parse_redirect(arg_prev, arg);
 
     /*EXECUTABLE*/
     //if((bg = (*arg[size-1] == '&')) != 0) /*IF THE JOB SHOULD RUN IN THE BACKGROUND*/
@@ -48,6 +52,7 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
             if(arg[i+1] == NULL){/*IF THERE IS NO ARGUMENT AFTER <*/
                 printf(SYNTAX_ERROR,"unexpected token 'newline'");
                 return false;
+
             }
 
             if(arg[i+2]==NULL){
@@ -102,6 +107,10 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
                 return false;
             }
         }
+        else if(strcmp(arg[i],"|") == 0) /*HANDLING MULTIPLE PIPING*/{
+
+            return piped(arg, size);
+        }
 
         i++;
     }
@@ -123,6 +132,114 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
     else /*THE COMMAND WAS A BUILT-IN AND WAS TRUE*/
         return true;
 
+}
+
+/*HANDLE MULTIPLE PIPES*/
+bool piped(char *argv[], int argc){
+
+    int pipefd[2];
+
+    int process; /*NUMBER OF PROCESS*/
+    int process_no = 0; /*THE ith PROCESS STARTING FROM 0*/
+    int end =0; /*INDICATE END OF PROCESS*/
+    int read = STDIN_FILENO; /*READ END*/
+    int write = STDOUT_FILENO; /*WRITE END*/
+
+    char *prog[MAXARGS];
+    pid_t pid;
+
+    /*FIND NUMBER OF PROCESS*/
+    for(int i=0; argv[i]!=NULL; i++){
+
+        if(strcmp(argv[i], "|") == 0)
+            process++;
+    }
+
+    process++;
+
+    int i=0;
+    while((argv[i]!=NULL && end !=1)){
+
+        int j = 0;
+        while(strcmp(argv[i],"|") != 0){
+
+            prog[j] = argv[i];
+            i++;
+            if(argv[i] == NULL){
+                end = 1;
+                j++;
+                prog[j] = NULL;
+                break;
+
+            }
+            j++;
+        }
+
+        prog[j] = NULL;
+        i++;
+
+
+           pipe(pipefd);
+           write = pipefd[1];
+
+           if((pid = Fork()) == 0){
+
+                if(read != STDIN_FILENO){
+
+                    Dup2(read, STDIN_FILENO);
+                    Close(read);
+                }
+
+                if(write != STDOUT_FILENO){
+
+                    Dup2(write, STDOUT_FILENO);
+                    Close(write);
+                }
+
+                if(execvp(prog[0],prog)<0)
+                    return false;
+
+           }
+
+        Close(write);
+        read = pipefd[0];
+
+        int status;
+
+        if(waitpid(pid, &status, 0) < 0)
+            unix_error("fg: waitpid error");
+
+
+        process_no++;
+    }
+
+
+
+    if((pid = Fork()) == 0){
+        if(read != STDIN_FILENO){
+            Dup2(read, STDIN_FILENO);
+            Close(read);
+        }
+
+        if(execvp(prog[0],prog)<0)
+            return false;
+    }
+
+    int status;
+
+    if(waitpid(pid, &status, 0) < 0)
+        unix_error("fg: waitpid error");
+
+
+    return true;
+}
+
+int is_even(int n){ /*RETURN VALUE 0 IS EVEN AND 1 IS ODD*/
+
+    if(n%2 == 0)
+        return 0;
+    else
+        return 1;
 }
 
 /*EXECUTING PROCESSES WITH REDIRECTS*/
@@ -211,6 +328,82 @@ int parseline(char *buff, char **argv){
 
 }
 
+int parse_redirect(char *argv[], char *argv_mod[]){
+
+    int i =0, argc = 0, j;
+    char delimit[] = {'>', '<', '|'};
+    char* out = ">\0";
+    char* in = "<\0";
+    char* pip = "|\0";
+
+    for(int i=0; i<1;i++)
+        printf("%s\n",argv[i] );
+    printf("xxxxx\n");
+
+    while(argv[i] != NULL){
+
+        char *token = strtok(argv[i], delimit);
+        /*for(int j=0; j<strlen(argv[i]); j++){
+
+            if(*(argv[i]+j) != '>' && *(argv[i]+j) != '<' && *(argv[i]+j) != '|'){
+                printf("%s\n", argv_mod[argc]);
+                *(argv_mod[argc]+j) = *(argv[i]+j);
+                printf("hi\n");
+            }
+
+            else{
+
+                argc++;
+                *(argv_mod[argc]+0) = *(argv[i]+j);
+                argc++;
+            }
+        }*/
+
+        argv_mod[argc++] = token;
+        j =0;
+        while(token != NULL){
+            printf("j= %d\n", j);
+
+            if(*(argv[i]+j) == '>') {
+                printf(">: %d\n",j );
+
+                argv_mod[argc++] = token;
+                argv_mod[argc++] = out;
+                token = strtok(NULL, delimit);
+            }
+            if(*(argv[i]+j) == '<'){
+                printf("%d\n",j );
+                argv_mod[argc++] = token;
+                argv_mod[argc++] = in;
+                token = strtok(NULL, delimit);
+            }
+            if(*(argv[i]+j) == '|'){
+                printf("%d\n",j );
+                argv_mod[argc++] = token;
+                argv_mod[argc++] = pip;
+                token = strtok(NULL, delimit);
+            }
+            /*if(*(argv[i]+j) == '\0'){
+                printf("null: %d\n",j );
+                //printf("%s\n",token );
+                argv_mod[argc++] = token;
+                token = strtok(NULL, delimit);
+            }*/
+
+            j++;
+        }
+        i++;
+    }
+
+    argv[argc] = NULL;
+    printf("cool\n");
+
+    for(int i=0; i<argc;i++)
+        printf("%s\n",argv_mod[i] );
+    printf("xxxxx\n");
+    return argc;
+}
+
 bool check_builtin(char **argv, int argc){ /*STILL NEED TO IMPLEMENT JUNK ARGUMENTS AFTER ONE ARGUMENT*/
 
 
@@ -228,8 +421,31 @@ bool check_builtin(char **argv, int argc){ /*STILL NEED TO IMPLEMENT JUNK ARGUME
     }
     if(strcmp(argv[0], "pwd") == 0){  /*PRINTS THE CURRENT DIRECTORY*/
         char* path = pwd();
+
+        int i =0, opt = 0, fd;
+        int out_flags = O_WRONLY|O_CREAT|O_TRUNC;
+
+        for(i= 0;i<argc;i++){
+            if(strcmp(argv[i],">") == 0){
+                opt = 1;
+                break;
+            }
+        }
+        if(opt ==1 && argc -1 == i){
+            printf(SYNTAX_ERROR,  " unexpected token 'newline'");
+            return true;
+        }
+
+        if(opt ==1){
+            fd = open(argv[i+1], out_flags, S_IRWXU);
+            write(fd, path, strlen(path));
+            Close(fd);
+        }
+
+        else{
         write(1,path,strlen(path));
         printf("\n");
+    }
         free(path);
         return true;
     }
@@ -240,29 +456,55 @@ bool check_builtin(char **argv, int argc){ /*STILL NEED TO IMPLEMENT JUNK ARGUME
 
 void help(char **argv, int argc){
 
+    int j =0, opt = 0, fd;
+    int stdout;
+        int out_flags = O_WRONLY|O_CREAT|O_TRUNC;
 
-    if(argc == 1){
+        for(j= 0;j<argc;j++){
+            if(strcmp(argv[j],">") == 0){
+                opt = 1;
+                break;
+            }
+        }
+
+        if(opt ==1 && argc -1 == j){
+            printf(SYNTAX_ERROR,  " unexpected token 'newline'");
+            return;
+        }
+
+        if(opt ==1){
+            fd = open(argv[j+1], out_flags, S_IRWXU);
+            stdout = dup(STDOUT_FILENO);
+            Dup2(fd, STDOUT_FILENO);
+        }
+
+    if(argc == 1 || (opt ==1 && argc == 3)){
         printf("These shell commands are defined iternally. Type 'help' to see this list.\nType 'help name' to find out more about function 'name'.\n cd [dir] \n exit [n] \n pwd[-LP] \n help [-d]\n");
     }
 
     else{
 
-        if(strcmp(argv[1],"cd") == 0)
-            printf("cd: cd [dir]\n    Change the shellworking directory\n");
+        for(int i=1; i<j; i++){
+            if(strcmp(argv[i],"cd") == 0)
+                printf("cd: cd [dir]\n    Change the shellworking directory\n");
 
-        else if(strcmp(argv[1],"exit") == 0)
-            printf("exit: exit [n]\n      Exit the shell\n");
+            else if(strcmp(argv[i],"exit") == 0)
+                printf("exit: exit [n]\n      Exit the shell\n");
 
-        else if(strcmp(argv[1],"pwd") == 0)
-            printf("pwd: pwd [-LP]\n     Print the name of the current working directory\n");
+            else if(strcmp(argv[i],"pwd") == 0)
+                printf("pwd: pwd [-LP]\n     Print the name of the current working directory\n");
 
-        else if(strcmp(argv[1],"help")==0)
-            printf("help: help [-d]\n      Display information about built-in commands\n");
-        else
-            printf("sfish: help: no help topics match '%s' . Try 'help help'\n", argv[1]);
+            else if(strcmp(argv[i],"help")==0)
+                printf("help: help [-d]\n      Display information about built-in commands\n");
+            else
+                printf("sfish: help: no help topics match '%s' . Try 'help help'\n", argv[i]);
+         }
 
+    }
 
-
+    if(opt == 1){
+        Dup2(stdout, STDOUT_FILENO);
+        Close(fd);
     }
 
 
@@ -302,6 +544,7 @@ void cd(char **argv, int argc){
 }
 
 char* pwd(){
+
 
     size_t size = 40;
 

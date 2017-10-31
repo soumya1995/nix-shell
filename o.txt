@@ -1,0 +1,10 @@
+bin
+build
+include
+Makefile
+Makefile.config
+o.txt
+rsrc
+src
+testcmds.sf
+tests

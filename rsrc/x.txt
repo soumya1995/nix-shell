@@ -1,0 +1,9 @@
+bin
+build
+include
+Makefile
+Makefile.config
+rsrc
+src
+testcmds.sf
+tests
