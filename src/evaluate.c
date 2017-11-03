@@ -12,12 +12,19 @@
 
 char* last_dir;
 
+
 bool eval(char* input /*input has a \n at the end*/, char* envp[]){
 
     //char *arg_prev[MAXARGS];
     char *arg[MAXARGS];
     char *prog[MAXARGS]; /*STORING THE EXECUTABLE*/
     pid_t pid; /*PROCESS ID*/
+
+    sigset_t mask, prev;
+    Signal(SIGCHLD, sigchld_handler);
+    Signal(SIGINT, sigint_handler);
+    Sigemptyset(&mask);
+    Sigaddset(&mask, SIGCHLD);
    // int bg;
     int i=0, size;
 
@@ -115,18 +122,23 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
         i++;
     }
 
+
+        Sigprocmask(SIG_BLOCK, &mask, &prev); /*BLOCK SIGCHLD*/
+
         if((pid = Fork()) == 0){ /*LAUNCH THE EXECUTABLE WHEN NO REDIRECTION OR PIPING IS NOT FOUND*/
+
+            Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
 
             if(execvp(arg[0],arg)<0)
                 return false;
         }
 
-        int status;
+        sigsuspend(&prev);
 
-        if(waitpid(pid, &status, 0) < 0)
-            unix_error("fg: waitpid error");
+        Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
 
-        return true;
+
+    return true;
     }
 
     else /*THE COMMAND WAS A BUILT-IN AND WAS TRUE*/
@@ -148,6 +160,12 @@ bool piped(char *argv[], int argc){
     char *prog[MAXARGS];
     pid_t pid;
 
+    sigset_t mask, prev;
+    Signal(SIGCHLD, sigchld_handler);
+    Signal(SIGINT, sigint_handler);
+    Sigemptyset(&mask);
+    Sigaddset(&mask, SIGCHLD);
+
     /*FIND NUMBER OF PROCESS*/
     for(int i=0; argv[i]!=NULL; i++){
 
@@ -158,6 +176,9 @@ bool piped(char *argv[], int argc){
     process++;
 
     int i=0;
+
+    Sigprocmask(SIG_BLOCK, &mask, &prev); /*BLOCK SIGCHLD*/
+
     while((argv[i]!=NULL && end !=1)){
 
         int j = 0;
@@ -184,6 +205,8 @@ bool piped(char *argv[], int argc){
 
            if((pid = Fork()) == 0){
 
+                Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
+
                 if(read != STDIN_FILENO){
 
                     Dup2(read, STDIN_FILENO);
@@ -204,11 +227,9 @@ bool piped(char *argv[], int argc){
         Close(write);
         read = pipefd[0];
 
-        int status;
+        Sigsuspend(&prev);
 
-        if(waitpid(pid, &status, 0) < 0)
-            unix_error("fg: waitpid error");
-
+        Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
 
         process_no++;
     }
@@ -216,6 +237,9 @@ bool piped(char *argv[], int argc){
 
 
     if((pid = Fork()) == 0){
+
+        Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
+
         if(read != STDIN_FILENO){
             Dup2(read, STDIN_FILENO);
             Close(read);
@@ -225,10 +249,9 @@ bool piped(char *argv[], int argc){
             return false;
     }
 
-    int status;
+    sigsuspend(&prev);
 
-    if(waitpid(pid, &status, 0) < 0)
-        unix_error("fg: waitpid error");
+    Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
 
 
     return true;
@@ -245,6 +268,12 @@ int is_even(int n){ /*RETURN VALUE 0 IS EVEN AND 1 IS ODD*/
 /*EXECUTING PROCESSES WITH REDIRECTS*/
 bool file_redirect(char *argv[], char *inputfile, char *outputfile, int option){
 
+    sigset_t mask, prev;
+    Signal(SIGCHLD, sigchld_handler);
+    Signal(SIGINT, sigint_handler);
+    Sigemptyset(&mask);
+    Sigaddset(&mask, SIGCHLD);
+
 
     pid_t pid; /*PROCESS ID*/
     int in_flags, out_flags, fd;
@@ -252,7 +281,11 @@ bool file_redirect(char *argv[], char *inputfile, char *outputfile, int option){
     in_flags = O_RDONLY;
     out_flags = O_WRONLY|O_CREAT|O_TRUNC;
 
+    Sigprocmask(SIG_BLOCK, &mask, &prev); /*BLOCK SIGCHLD*/
+
     if((pid = Fork()) == 0){
+
+        Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
         if(option == 0){ /*input redirection*/
 
             fd = open(inputfile, in_flags, S_IRWXU);
@@ -291,13 +324,26 @@ bool file_redirect(char *argv[], char *inputfile, char *outputfile, int option){
         return false;
     }*/
 
-    int status;
+    Sigsuspend(&prev);
 
-        if(waitpid(pid, &status, 0) < 0)
-            unix_error("fg: waitpid error");
-
+    Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
 
         return true;
+
+}
+
+
+void sigchld_handler(int sig){
+
+    int status;
+    int olderrno =errno;
+    waitpid(-1, &status, 0);
+
+    errno = olderrno;
+}
+
+void sigint_handler(int sig){
+
 
 }
 
