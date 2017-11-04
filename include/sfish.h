@@ -15,7 +15,7 @@ bool piped(char *argv[], int argc);
 
 int is_even(int n);
 
-bool eval(char* input, char* envp[]);
+bool eval(char* input, char* envp[], char* process_name);
 
 int parse_redirect(char *argv[], char *argv_mod[]);
 
@@ -25,6 +25,8 @@ int parseline(char* buf, char **argv);
 void sigchld_handler(int sig);
 
 void sigint_handler(int sig);
+
+void sigtstp_handler(int sig);
 
 /*FUNCTIONS FOR builtin*/
 bool check_builtin(char **argv, int argc);

@@ -14,7 +14,7 @@
 char* last_dir;
 
 
-bool eval(char* input /*input has a \n at the end*/, char* envp[]){
+bool eval(char* input /*input has a \n at the end*/, char* envp[], char* process_name){
 
     //char *arg_prev[MAXARGS];
     char *arg[MAXARGS];
@@ -124,16 +124,15 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
         /*LAUNCH THE EXECUTABLE WHEN NO REDIRECTION OR PIPING IS NOT FOUND*/
        Sigprocmask(SIG_BLOCK, &mask, &prev); /*BLOCK SIGCHLD*/
         if((pid = Fork()) == 0){
-            printf("child:%d\n",getpid());
 
             Setpgid(0,0);
             Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
 
-            if(execvp(arg[0],arg)<0)
+            if(execvp(arg[0],arg)<0){
                 return false;
+            }
         }
-
-        addjob(table, pid, input, (bg == 1? BG:FG));
+        addjob(table, pid, process_name, (bg == 1? BG:FG));
        // if(setpgid(0,0) < 0),
               //  unix_error("setpgid error");
         sigsuspend(&prev);
@@ -143,8 +142,7 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
         if(!bg)
             waitfg(pid);
         else
-            printf(JOBS_LIST_ITEM, pid_to_jid(table,pid), input);
-
+            printf(JOBS_LIST_ITEM, pid_to_jid(table,pid), process_name);
 
     return true;
     }
@@ -459,29 +457,29 @@ void waitfg(pid_t pid){
 
 
 void sigchld_handler(int sig){
-    printf("hi\n");
 
 
     int status;
     pid_t pid;
 
 
-   while((pid = waitpid(-1, &status, WNOHANG)) > 0){
+   while((pid = waitpid(-1, &status, 0|WNOHANG|WUNTRACED)) > 0){
+
 
         if(WIFSTOPPED(status)){
 
             process_fields *process = getjob_bypid(table, pid);
             process -> status = STOP;
 
-            fprintf(stdout, "[%d] %s stopped by signal %d \n",pid_to_jid(table, pid), process -> name, WSTOPSIG(status));
+            //fprintf(stdout, "[%d] %s stopped by signal %d \n",pid_to_jid(table, pid), process -> name, WSTOPSIG(status));
         }
 
         else if(WIFSIGNALED(status)){
 
-            process_fields *process = getjob_bypid(table, pid);
+            //process_fields *process = getjob_bypid(table, pid);
             deletejob(table, pid);
 
-            fprintf(stdout, "[%d] %s terminated by signal %d \n",pid_to_jid(table, pid), process -> name, WTERMSIG(status));
+            //fprintf(stdout, "[%d] %s terminated by signal %d \n",pid_to_jid(table, pid), process -> name, WTERMSIG(status));
         }
 
         else if(WIFEXITED(status)){
@@ -493,6 +491,7 @@ void sigchld_handler(int sig){
             unix_error("waitpid() error");
    }
 
+
    return;
 
 }
@@ -503,7 +502,6 @@ void sigint_handler(int sig){
 
 
     if((pid = fgpid(table)) > 0){
-        printf("hhhhhhhhhhhhhhhhhh:  %d\n", pid);
 
         process_fields *process = getjob_bypid(table, pid);
 
@@ -521,6 +519,20 @@ void sigint_handler(int sig){
 
     return;
 
+}
+
+void sigtstp_handler(int sig){
+
+    pid_t pid;
+
+    if((pid = fgpid(table)) > 0){
+
+        process_fields *process = getjob_bypid(table, pid);
+
+        Kill(-pid, SIGTSTP);
+
+        fprintf(stdout, "\n [%d] %s stopped by CTRL-Z signal\n",pid_to_jid(table, pid), process -> name);
+    }
 }
 
 int parseline(char *buff, char **argv){
@@ -628,6 +640,12 @@ int parse_redirect(char *argv[], char *argv_mod[]){
 
 bool check_builtin(char **argv, int argc){ /*STILL NEED TO IMPLEMENT JUNK ARGUMENTS AFTER ONE ARGUMENT*/
 
+
+    if(strcmp(argv[0], "jobs") == 0){ /*LIST JOBS STOPPED BY CTRL-Z*/
+
+        print_jobs(table);
+        return true;
+    }
 
     if(strcmp(argv[0], "help") == 0){  /*PRINTS THE HELP MENU FOR BUILT-INS*/
         help(argv, argc);

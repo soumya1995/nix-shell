@@ -15,6 +15,7 @@ int main(int argc, char *argv[], char* envp[]) {
     extern char* last_dir;
 
     char* input;
+    char *process_name;
     char* prompt;
     char* mod_prompt;
     bool exited = false;
@@ -30,14 +31,14 @@ int main(int argc, char *argv[], char* envp[]) {
         }
     }
 
-    Signal(SIGCHLD, sigchld_handler);
-    Signal(SIGINT, sigint_handler); /*CTRL-C*/
 
     /*INITIALIZE JOB TABLE*/
 
     initializejobs(table);
 
-
+    Signal(SIGCHLD, sigchld_handler);
+    Signal(SIGINT, sigint_handler); /*CTRL-C*/
+    Signal(SIGTSTP, sigtstp_handler); /*CTRL-Z*/
 
     do {
 
@@ -72,12 +73,17 @@ int main(int argc, char *argv[], char* envp[]) {
         strcat(input,"\n"); /*ADD NEWLINE TO END OF input*/
 
         /*CALL check_builtin() to check if user have entered a vaid built-in and execute it*/
-        if(eval(input, envp) == false)
-            printf(EXEC_NOT_FOUND, input);
+        process_name = calloc(strlen(input), strlen(input));
+        strcpy(process_name, input);
 
+        if(eval(input, envp, process_name) == false){
+            printf(EXEC_NOT_FOUND, input);
+            exit(0);
+        }
 
         // Readline mallocs the space for input. You must free it.
         rl_free(input);
+        rl_free(process_name);
 
     } while(!exited);
 
