@@ -148,7 +148,7 @@ pid_t Getpgrp(void) {
  * Wrappers for Unix signal functions
  ***********************************/
 
-/* $begin sigaction */
+/* $begin sigaction (Wrapper for sigaction()) */
 handler_t *Signal(int signum, handler_t *handler)
 {
     struct sigaction action, old_action;

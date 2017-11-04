@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <signal.h>
 #include <errno.h>
 #include <readline/readline.h>
 
@@ -21,11 +22,9 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
     pid_t pid; /*PROCESS ID*/
 
     sigset_t mask, prev;
-    Signal(SIGCHLD, sigchld_handler);
-    Signal(SIGINT, sigint_handler);
     Sigemptyset(&mask);
     Sigaddset(&mask, SIGCHLD);
-   // int bg;
+    int bg;
     int i=0, size;
 
 
@@ -34,8 +33,8 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
     //size = parse_redirect(arg_prev, arg);
 
     /*EXECUTABLE*/
-    //if((bg = (*arg[size-1] == '&')) != 0) /*IF THE JOB SHOULD RUN IN THE BACKGROUND*/
-       // arg[--size] = NULL;
+    if((bg = (*arg[size-1] == '&')) != 0) /*IF THE JOB SHOULD RUN IN THE BACKGROUND*/
+        arg[--size] = NULL;
 
     if(arg[0] == NULL) /*IGNORE EMPTY LINES*/
         return true;
@@ -122,20 +121,29 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
         i++;
     }
 
+        /*LAUNCH THE EXECUTABLE WHEN NO REDIRECTION OR PIPING IS NOT FOUND*/
+       Sigprocmask(SIG_BLOCK, &mask, &prev); /*BLOCK SIGCHLD*/
+        if((pid = Fork()) == 0){
+            printf("child:%d\n",getpid());
 
-        Sigprocmask(SIG_BLOCK, &mask, &prev); /*BLOCK SIGCHLD*/
-
-        if((pid = Fork()) == 0){ /*LAUNCH THE EXECUTABLE WHEN NO REDIRECTION OR PIPING IS NOT FOUND*/
-
+            Setpgid(0,0);
             Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
 
             if(execvp(arg[0],arg)<0)
                 return false;
         }
 
+        addjob(table, pid, input, (bg == 1? BG:FG));
+       // if(setpgid(0,0) < 0),
+              //  unix_error("setpgid error");
         sigsuspend(&prev);
 
         Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
+
+        if(!bg)
+            waitfg(pid);
+        else
+            printf(JOBS_LIST_ITEM, pid_to_jid(table,pid), input);
 
 
     return true;
@@ -144,6 +152,114 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[]){
     else /*THE COMMAND WAS A BUILT-IN AND WAS TRUE*/
         return true;
 
+}
+
+void addjob(process_fields *table, pid_t pid, char *name, int status){
+
+
+    for(int i=0; i<MAXJOBS; i++){
+
+        if(table[i].pid == 0){
+
+            table[i].pid = pid;
+            table[i].jid = i;
+            table[i].name = calloc(strlen(name), strlen(name));
+            strcpy(table[i].name, name);
+            table[i].status = status;
+
+            //jobs++;
+            return;
+        }
+    }
+}
+
+bool deletejob(process_fields *table, pid_t pid){
+
+    for(int i=0; i<MAXJOBS; i++){
+
+        if(table[i].pid == pid){
+            free(table[i].name);
+            resetjob(&table[i]);
+
+            //jid_count--;
+           // jobs--;
+            return true;
+        }
+    }
+    return false;
+}
+
+void resetjob(process_fields *process){
+
+    process -> pid = 0;
+    process -> jid = 0;
+    process -> status = UNDEFINED;
+    process -> name = '\0';
+
+}
+
+void initializejobs(process_fields *table){
+
+    for(int i=0;i<MAXJOBS; i++)
+        resetjob(&table[i]);
+
+}
+
+pid_t fgpid(process_fields *table){
+
+    for(int i=0; i<MAXJOBS; i++){
+
+        if(table[i].status == FG)
+            return table[i].pid;
+    }
+
+    return 0;
+}
+
+process_fields *getjob_byjid(process_fields *table, int jid){
+
+    for(int i=0; i<MAXJOBS; i++){
+
+        if(table[i].jid == jid)
+            return &table[i];
+    }
+
+    return NULL;
+}
+
+process_fields *getjob_bypid(process_fields *table, pid_t pid){
+
+    for(int i=0; i<MAXJOBS; i++){
+
+        if(table[i].pid == pid)
+            return &table[i];
+    }
+
+
+    return NULL;
+}
+
+int pid_to_jid(process_fields *table, pid_t pid){
+
+    for (int i = 0; i < MAXJOBS; ++i){
+
+        if(table[i].pid == pid)
+            return table[i].jid;
+    }
+
+    return 0;
+
+}
+
+void print_jobs(process_fields *table){
+
+    for(int i=0; i<MAXJOBS; i++){
+
+        if(table[i].pid != 0 && table[i].status == STOP){
+
+            printf(JOBS_LIST_ITEM, table[i].jid, table[i].name);
+        }
+    }
 }
 
 /*HANDLE MULTIPLE PIPES*/
@@ -161,8 +277,6 @@ bool piped(char *argv[], int argc){
     pid_t pid;
 
     sigset_t mask, prev;
-    Signal(SIGCHLD, sigchld_handler);
-    Signal(SIGINT, sigint_handler);
     Sigemptyset(&mask);
     Sigaddset(&mask, SIGCHLD);
 
@@ -269,8 +383,6 @@ int is_even(int n){ /*RETURN VALUE 0 IS EVEN AND 1 IS ODD*/
 bool file_redirect(char *argv[], char *inputfile, char *outputfile, int option){
 
     sigset_t mask, prev;
-    Signal(SIGCHLD, sigchld_handler);
-    Signal(SIGINT, sigint_handler);
     Sigemptyset(&mask);
     Sigaddset(&mask, SIGCHLD);
 
@@ -332,18 +444,82 @@ bool file_redirect(char *argv[], char *inputfile, char *outputfile, int option){
 
 }
 
+void waitfg(pid_t pid){
+
+    process_fields *process = getjob_bypid(table, pid);
+
+    if(!process)
+        return;
+
+    while(process -> pid == pid && process -> status == FG)
+        Sleep(1);
+
+    return;
+}
+
 
 void sigchld_handler(int sig){
+    printf("hi\n");
+
 
     int status;
-    int olderrno =errno;
-    waitpid(-1, &status, 0);
+    pid_t pid;
 
-    errno = olderrno;
+
+   while((pid = waitpid(-1, &status, WNOHANG)) > 0){
+
+        if(WIFSTOPPED(status)){
+
+            process_fields *process = getjob_bypid(table, pid);
+            process -> status = STOP;
+
+            fprintf(stdout, "[%d] %s stopped by signal %d \n",pid_to_jid(table, pid), process -> name, WSTOPSIG(status));
+        }
+
+        else if(WIFSIGNALED(status)){
+
+            process_fields *process = getjob_bypid(table, pid);
+            deletejob(table, pid);
+
+            fprintf(stdout, "[%d] %s terminated by signal %d \n",pid_to_jid(table, pid), process -> name, WTERMSIG(status));
+        }
+
+        else if(WIFEXITED(status)){
+
+            deletejob(table, pid);
+        }
+
+        else
+            unix_error("waitpid() error");
+   }
+
+   return;
+
 }
 
 void sigint_handler(int sig){
 
+    pid_t pid;
+
+
+    if((pid = fgpid(table)) > 0){
+        printf("hhhhhhhhhhhhhhhhhh:  %d\n", pid);
+
+        process_fields *process = getjob_bypid(table, pid);
+
+        Kill(-pid, SIGINT);
+
+        fprintf(stdout, "\n [%d] %s terminated by CTRL-C signal\n",pid_to_jid(table, pid), process -> name);
+    }
+
+    /*Sleep(2);
+    fflush(stdout);
+    Sleep(1);
+    printf("Process with pid: %d terminated \n",getpid());
+
+    exit(0);*/
+
+    return;
 
 }
 

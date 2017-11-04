@@ -3,10 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <signal.h>
 #include <readline/readline.h>
 
 #include "sfish.h"
 #include "debug.h"
+#include "csapp.h"
 
 int main(int argc, char *argv[], char* envp[]) {
 
@@ -27,6 +29,14 @@ int main(int argc, char *argv[], char* envp[]) {
             exit(EXIT_FAILURE);
         }
     }
+
+    Signal(SIGCHLD, sigchld_handler);
+    Signal(SIGINT, sigint_handler); /*CTRL-C*/
+
+    /*INITIALIZE JOB TABLE*/
+
+    initializejobs(table);
+
 
 
     do {
