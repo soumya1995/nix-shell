@@ -79,6 +79,10 @@ int pid_to_jid(process_fields *table, pid_t pid);
 
 void print_jobs(process_fields *table);
 
+bool fg(char **argv);
+
+bool kill_process(char **argv);
+
 
 
 /* Format Strings */

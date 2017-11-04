@@ -647,6 +647,19 @@ bool check_builtin(char **argv, int argc){ /*STILL NEED TO IMPLEMENT JUNK ARGUME
         return true;
     }
 
+    if(strcmp(argv[0], "kill") == 0){
+
+        return kill_process(argv);
+    }
+
+    if(strcmp(argv[0], "fg") == 0){
+
+        return fg(argv);
+    }
+
+    if(strcmp(argv[0], "&") == 0)
+        return true;
+
     if(strcmp(argv[0], "help") == 0){  /*PRINTS THE HELP MENU FOR BUILT-INS*/
         help(argv, argc);
         return true;
@@ -661,6 +674,7 @@ bool check_builtin(char **argv, int argc){ /*STILL NEED TO IMPLEMENT JUNK ARGUME
     }
     if(strcmp(argv[0], "pwd") == 0){  /*PRINTS THE CURRENT DIRECTORY*/
         char* path = pwd();
+
 
         int i =0, opt = 0, fd;
         int out_flags = O_WRONLY|O_CREAT|O_TRUNC;
@@ -691,6 +705,87 @@ bool check_builtin(char **argv, int argc){ /*STILL NEED TO IMPLEMENT JUNK ARGUME
     }
 
     return false;
+}
+
+bool fg(char **argv){
+
+    process_fields *process = NULL;
+
+    if(argv[1] == NULL)
+        return false;
+
+    else if(argv[1][0] != '%')
+        return false;
+
+    else{
+
+        int jid = atoi(&argv[1][1]);
+
+        if(!(process = getjob_byjid(table, jid))){
+            printf("[%c]: No such job\n",argv[1][1]);
+            return true;
+        }
+
+        Kill((process -> pid), SIGCONT);
+        //waitpid(getppid(), NULL, 0|WNOHANG|WUNTRACED|WCONTINUED);
+        process -> status = FG;
+        waitfg(process -> pid);
+        printf(JOBS_LIST_ITEM, process -> jid, process -> name );
+
+        return true;
+
+    }
+
+    printf("fg: internal error\n");
+    return false;
+
+}
+
+bool kill_process(char **argv){
+
+    process_fields *process = NULL;
+
+    if(argv[1] == NULL)
+        return false;
+
+    else{
+
+        if(argv[1][0] == '%'){ /*FOR JID*/
+            int jid = atoi(&argv[1][1]);
+
+            if(!(process = getjob_byjid(table, jid))){
+                printf("%s: No such job\n",argv[1] );
+                return true;
+            }
+        }
+
+        else if(isdigit(argv[1][0])){
+
+            pid_t pid = atoi(argv[1]);
+
+            if(!(process = getjob_bypid(table, pid))){
+                printf("%d: No such process\n",pid );
+                return true;
+            }
+        }
+
+        else{
+
+            printf(SYNTAX_ERROR,"argument must be PID or JID" );
+            return true;
+        }
+
+        Kill((process -> pid), SIGKILL);
+        printf(JOBS_LIST_ITEM, process -> jid, process -> name );
+        deletejob(table, process -> pid);
+        waitfg(process -> pid);
+
+        return true;
+    }
+
+    printf("kill: internal error\n");
+    return false;
+
 }
 
 
