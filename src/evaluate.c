@@ -27,8 +27,10 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[], char* process
     int bg;
     int i=0, size;
 
+    size = parse(input, arg);
+    //strcat(input,"\n"); /*ADD NEWLINE TO END OF input*/
+    //size = parseline(input, arg);
 
-    size = parseline(input, arg);
 
     //size = parse_redirect(arg_prev, arg);
 
@@ -534,6 +536,65 @@ void sigtstp_handler(int sig){
         fprintf(stdout, "\n [%d] %s stopped by CTRL-Z signal\n",pid_to_jid(table, pid), process -> name);
     }
 }
+
+int parse(char *buff, char **argv){
+
+    buff[strlen(buff)-1] = ' '; /*REPLACING TRAILING \n with space*/
+    int argc =0;
+    char delim;
+
+    char *copy = strdup(buff); /*MUST FREE IT*/
+
+    char *seg = strtok(buff, "><| ");
+
+
+    while(seg != NULL){
+
+        //printf("%s\n",seg );
+        argv[argc++] = seg;
+
+        int j =0;
+        delim = copy[seg-buff+strlen(seg)];
+        while(delim == '>' || delim == '<' || delim == '|' || delim == ' '){
+
+            if(delim == '>')
+                argv[argc++] = out;
+            if(delim == '<')
+                argv[argc++] = in;
+            if(delim == '|')
+                argv[argc++] = pipe_char;
+
+            j++;
+            delim = copy[seg-buff+strlen(seg)+j];
+
+        }
+
+        seg = strtok(NULL, "><| ");
+    }
+
+    argv[argc] = NULL;
+
+    free(copy);
+
+    return argc;
+
+}
+
+int parse_string(char *buff, char **argv, int pointer){
+
+    printf("buff: %s\n", buff);
+
+    char *seg = strtok(buff, " ");
+
+    while(seg != NULL){
+
+        argv[pointer++] = seg;
+        seg = strtok(NULL, " ");
+    }
+
+    return pointer;
+}
+
 
 int parseline(char *buff, char **argv){
 

@@ -21,6 +21,10 @@ int parse_redirect(char *argv[], char *argv_mod[]);
 
 int parseline(char* buf, char **argv);
 
+int parse(char *buff, char **argv);
+
+int parse_string(char *buff, char **argv, int pointer);
+
 /*SIGNAL HANDLERS*/
 void sigchld_handler(int sig);
 
@@ -43,6 +47,10 @@ char* pwd();
 
 
 /*Variable declarations*/
+
+    char *in;
+    char *out;
+    char *pipe_char;
 
 struct process_fields{
     pid_t pid;

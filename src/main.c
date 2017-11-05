@@ -40,6 +40,17 @@ int main(int argc, char *argv[], char* envp[]) {
     Signal(SIGINT, sigint_handler); /*CTRL-C*/
     Signal(SIGTSTP, sigtstp_handler); /*CTRL-Z*/
 
+
+
+    in = calloc(2,2);
+    strcpy(in, "<");
+
+    out = calloc(2,2);
+    strcpy(out, ">");
+
+    pipe_char = calloc(2,2);
+    strcpy(pipe_char, "|");
+
     do {
 
         /*SET THE PROMPT*/
@@ -88,6 +99,9 @@ int main(int argc, char *argv[], char* envp[]) {
     } while(!exited);
 
     free(last_dir);/*free the last_dir variable since it was malloc()*/
+    free(in);
+    free(out);
+    free(pipe_char);
 
     exit(0);
     debug("%s", "user entered 'exit'");

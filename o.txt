@@ -1,13 +1,10 @@
-total 44
-drwxrwxr-x 8 student student 4096 Oct 31 11:21 .
-drwxrwxr-x 8 student student 4096 Oct 29 13:50 ..
-drwxrwxr-x 2 student student 4096 Nov  3 15:36 bin
-drwxrwxr-x 2 student student 4096 Nov  3 15:36 build
-drwxrwxr-x 2 student student 4096 Oct 28 12:58 include
--rw-rw-r-- 1 student student 1034 Oct 24 08:55 Makefile
--rw-rw-r-- 1 student student  612 Oct 21 00:49 Makefile.config
--rw-rw-r-- 1 student student    0 Nov  3 15:38 o.txt
-drwxrwxr-x 2 student student 4096 Oct 30 17:33 rsrc
-drwxrwxr-x 2 student student 4096 Oct 29 10:40 src
--rw-rw-r-- 1 student student  107 Nov  3 11:46 testcmds.sf
-drwxrwxr-x 2 student student 4096 Oct 21 00:49 tests
+bin
+build
+include
+Makefile
+Makefile.config
+o.txt
+rsrc
+src
+testcmds.sf
+tests
