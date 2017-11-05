@@ -56,7 +56,7 @@ struct process_fields{
     pid_t pid;
     int jid;
     char* name;
-    int status; /*0 means false*/
+    int status; /*3 means STOP*/
 };
 
 typedef struct process_fields process_fields;

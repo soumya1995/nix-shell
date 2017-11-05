@@ -16,7 +16,6 @@ char* last_dir;
 
 bool eval(char* input /*input has a \n at the end*/, char* envp[], char* process_name){
 
-    //char *arg_prev[MAXARGS];
     char *arg[MAXARGS];
     char *prog[MAXARGS]; /*STORING THE EXECUTABLE*/
     pid_t pid; /*PROCESS ID*/
@@ -28,11 +27,6 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[], char* process
     int i=0, size;
 
     size = parse(input, arg);
-    //strcat(input,"\n"); /*ADD NEWLINE TO END OF input*/
-    //size = parseline(input, arg);
-
-
-    //size = parse_redirect(arg_prev, arg);
 
     /*EXECUTABLE*/
     if((bg = (*arg[size-1] == '&')) != 0) /*IF THE JOB SHOULD RUN IN THE BACKGROUND*/
@@ -134,9 +128,9 @@ bool eval(char* input /*input has a \n at the end*/, char* envp[], char* process
                 return false;
             }
         }
+
+        process_name[strlen(process_name)-1] = ' '; /*REPLACING TRAILING \n with space*/
         addjob(table, pid, process_name, (bg == 1? BG:FG));
-       // if(setpgid(0,0) < 0),
-              //  unix_error("setpgid error");
         sigsuspend(&prev);
 
         Sigprocmask(SIG_SETMASK, &prev, NULL); /*UNBLOCK SIGHLD*/
@@ -166,8 +160,6 @@ void addjob(process_fields *table, pid_t pid, char *name, int status){
             table[i].name = calloc(strlen(name), strlen(name));
             strcpy(table[i].name, name);
             table[i].status = status;
-
-            //jobs++;
             return;
         }
     }
@@ -180,9 +172,6 @@ bool deletejob(process_fields *table, pid_t pid){
         if(table[i].pid == pid){
             free(table[i].name);
             resetjob(&table[i]);
-
-            //jid_count--;
-           // jobs--;
             return true;
         }
     }
@@ -431,10 +420,7 @@ bool file_redirect(char *argv[], char *inputfile, char *outputfile, int option){
 
 
     }
-    /*else{
-        printf("Cannot create child\n");
-        return false;
-    }*/
+
 
     Sigsuspend(&prev);
 
@@ -477,8 +463,6 @@ void sigchld_handler(int sig){
         }
 
         else if(WIFSIGNALED(status)){
-
-            //process_fields *process = getjob_bypid(table, pid);
             deletejob(table, pid);
 
             //fprintf(stdout, "[%d] %s terminated by signal %d \n",pid_to_jid(table, pid), process -> name, WTERMSIG(status));
@@ -505,19 +489,13 @@ void sigint_handler(int sig){
 
     if((pid = fgpid(table)) > 0){
 
-        process_fields *process = getjob_bypid(table, pid);
+       // process_fields *process = getjob_bypid(table, pid);
 
         Kill(-pid, SIGINT);
 
-        fprintf(stdout, "\n [%d] %s terminated by CTRL-C signal\n",pid_to_jid(table, pid), process -> name);
+        //fprintf(stdout, "\n [%d] %s terminated by CTRL-C signal\n",pid_to_jid(table, pid), process -> name);
     }
 
-    /*Sleep(2);
-    fflush(stdout);
-    Sleep(1);
-    printf("Process with pid: %d terminated \n",getpid());
-
-    exit(0);*/
 
     return;
 
@@ -533,7 +511,7 @@ void sigtstp_handler(int sig){
 
         Kill(-pid, SIGTSTP);
 
-        fprintf(stdout, "\n [%d] %s stopped by CTRL-Z signal\n",pid_to_jid(table, pid), process -> name);
+        fprintf(stdout, "\n [%d] %s stopped\n",pid_to_jid(table, pid), process -> name);
     }
 }
 
@@ -550,7 +528,6 @@ int parse(char *buff, char **argv){
 
     while(seg != NULL){
 
-        //printf("%s\n",seg );
         argv[argc++] = seg;
 
         int j =0;
@@ -578,21 +555,6 @@ int parse(char *buff, char **argv){
 
     return argc;
 
-}
-
-int parse_string(char *buff, char **argv, int pointer){
-
-    printf("buff: %s\n", buff);
-
-    char *seg = strtok(buff, " ");
-
-    while(seg != NULL){
-
-        argv[pointer++] = seg;
-        seg = strtok(NULL, " ");
-    }
-
-    return pointer;
 }
 
 
@@ -623,81 +585,7 @@ int parseline(char *buff, char **argv){
 
 }
 
-int parse_redirect(char *argv[], char *argv_mod[]){
 
-    int i =0, argc = 0, j;
-    char delimit[] = {'>', '<', '|'};
-    char* out = ">\0";
-    char* in = "<\0";
-    char* pip = "|\0";
-
-    for(int i=0; i<1;i++)
-        printf("%s\n",argv[i] );
-    printf("xxxxx\n");
-
-    while(argv[i] != NULL){
-
-        char *token = strtok(argv[i], delimit);
-        /*for(int j=0; j<strlen(argv[i]); j++){
-
-            if(*(argv[i]+j) != '>' && *(argv[i]+j) != '<' && *(argv[i]+j) != '|'){
-                printf("%s\n", argv_mod[argc]);
-                *(argv_mod[argc]+j) = *(argv[i]+j);
-                printf("hi\n");
-            }
-
-            else{
-
-                argc++;
-                *(argv_mod[argc]+0) = *(argv[i]+j);
-                argc++;
-            }
-        }*/
-
-        argv_mod[argc++] = token;
-        j =0;
-        while(token != NULL){
-            printf("j= %d\n", j);
-
-            if(*(argv[i]+j) == '>') {
-                printf(">: %d\n",j );
-
-                argv_mod[argc++] = token;
-                argv_mod[argc++] = out;
-                token = strtok(NULL, delimit);
-            }
-            if(*(argv[i]+j) == '<'){
-                printf("%d\n",j );
-                argv_mod[argc++] = token;
-                argv_mod[argc++] = in;
-                token = strtok(NULL, delimit);
-            }
-            if(*(argv[i]+j) == '|'){
-                printf("%d\n",j );
-                argv_mod[argc++] = token;
-                argv_mod[argc++] = pip;
-                token = strtok(NULL, delimit);
-            }
-            /*if(*(argv[i]+j) == '\0'){
-                printf("null: %d\n",j );
-                //printf("%s\n",token );
-                argv_mod[argc++] = token;
-                token = strtok(NULL, delimit);
-            }*/
-
-            j++;
-        }
-        i++;
-    }
-
-    argv[argc] = NULL;
-    printf("cool\n");
-
-    for(int i=0; i<argc;i++)
-        printf("%s\n",argv_mod[i] );
-    printf("xxxxx\n");
-    return argc;
-}
 
 bool check_builtin(char **argv, int argc){ /*STILL NEED TO IMPLEMENT JUNK ARGUMENTS AFTER ONE ARGUMENT*/
 
@@ -788,10 +676,9 @@ bool fg(char **argv){
         }
 
         Kill((process -> pid), SIGCONT);
-        //waitpid(getppid(), NULL, 0|WNOHANG|WUNTRACED|WCONTINUED);
         process -> status = FG;
         waitfg(process -> pid);
-        printf(JOBS_LIST_ITEM, process -> jid, process -> name );
+        //printf(JOBS_LIST_ITEM, process -> jid, process -> name );
 
         return true;
 
@@ -909,7 +796,6 @@ void help(char **argv, int argc){
 void cd(char **argv, int argc){
 
 
-    //char* dir = trim(substring(input,3));
 
     if(argc == 1){
 
@@ -921,12 +807,10 @@ void cd(char **argv, int argc){
         char* curr_dir = pwd();
         chdir(last_dir);
 
-        //free(curr_dir); /*free the call to pwd for current directory*/
         last_dir = curr_dir;
     }
 
     else {
-        //free(last_dir); /*free the last call to pwd*/
 
         last_dir = pwd();
         if(chdir(argv[1]) == -1){
@@ -953,9 +837,6 @@ char* pwd(){
         buff = (char*)realloc(buff,size);
         path = getcwd(buff, size);
     }
-
-    /*pwd() allocates mem and needs to be freed*/
-    //free(buff);
 
     return path;
 
